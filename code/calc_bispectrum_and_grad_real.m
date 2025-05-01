@@ -11,9 +11,8 @@ for ell2=0:ell_max
                         for s1=1:num_shells
                             for s2=1:num_shells
                                 for s3=1:num_shells
-                                    if k1 - k2 - k3 == 0
-                                        cg_coeff = ClebschGordan( ...
-                                            ell2, ell3, ell1, k2, k3, k1);
+                                    if k1 + k2 + k3 == 0
+                                        cg_coeff = (-1)^k1 * clebsch_gordan(ell2, k2, ell3, k3, ell1, -k1);
                                         idx1 = sum((2 * (0:ell1-1) + 1) * num_shells) + (k1 + ell1) * num_shells + s1;
                                         idx2 = sum((2 * (0:ell2-1) + 1) * num_shells) + (k2 + ell2) * num_shells + s2;
                                         idx3 = sum((2 * (0:ell3-1) + 1) * num_shells) + (k3 + ell3) * num_shells + s3;
@@ -50,4 +49,26 @@ for ell2=0:ell_max
         end
     end
 end
+end
+
+function cg = clebsch_gordan(j1, m1, j2, m2, j3, m3)
+    if m1 + m2 ~= m3 || j3 < abs(j1 - j2) || j3 > j1 + j2
+        cg = 0; return;
+    end
+    t_min = max([0, j2 - m1 - j3, j1 + m2 - j3]);
+    t_max = min([j1 + j2 - j3, j1 - m1, j2 + m2]);
+    sum_term = 0;
+    for t = t_min:t_max
+        denom = factorial(t) * factorial(j1 + j2 - j3 - t) * ...
+                factorial(j1 - m1 - t) * factorial(j2 + m2 - t) * ...
+                factorial(j3 - j2 + m1 + t) * factorial(j3 - j1 - m2 + t);
+        sum_term = sum_term + (-1)^t / denom;
+    end
+    prefactor = sqrt(...
+        (2*j3 + 1) * factorial(j1 + j2 - j3) * factorial(j1 - j2 + j3) * ...
+        factorial(-j1 + j2 + j3) / factorial(j1 + j2 + j3 + 1) * ...
+        factorial(j3 + m3) * factorial(j3 - m3) * ...
+        factorial(j1 + m1) * factorial(j1 - m1) * ...
+        factorial(j2 + m2) * factorial(j2 - m2));
+    cg = prefactor * sum_term;
 end
