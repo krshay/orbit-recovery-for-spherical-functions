@@ -2,7 +2,7 @@ clear; clc;
 
 % --- Parameters ---
 d = 4;  % Bandlimit
-n_trials = 1;
+n_trials = 10;
 shell_values = 1:5;
 avg_errors = zeros(size(shell_values));
 std_errors = zeros(size(shell_values));
