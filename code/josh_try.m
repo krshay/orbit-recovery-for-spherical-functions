@@ -1,9 +1,9 @@
 clear; clc;
 
 % --- Parameters ---
-d = 3;  % Bandlimit
-n_trials = 10;
-shell_values = 5;
+d = 2;  % Bandlimit
+n_trials = 5;
+shell_values = 1:5;
 avg_errors = zeros(size(shell_values));
 std_errors = zeros(size(shell_values));
 
@@ -30,14 +30,13 @@ for idx = 1:length(shell_values)
 
         options = optimoptions('fminunc', ...
              'Algorithm', 'quasi-newton', ...
-            'Display', 'iter-detailed', ...
+            'Display', 'off', ...
             'MaxIterations', 500, ...
             'MaxFunctionEvaluations', 2e5, ...
             'OptimalityTolerance', 1e-10, ...
             'StepTolerance', 1e-10, ...
             'FunctionTolerance', 1e-10, ...
             'SpecifyObjectiveGradient', true);
-
 
         for ell = 2:d
             current_indices = [];
@@ -46,9 +45,10 @@ for idx = 1:length(shell_values)
             end
 
             for shell = 1:num_shells
-                x_init = true_coeffs(shell, current_indices) + 1* randn(size(current_indices));
-                obj = @(x_shell) specialized_loss_and_grad(x_shell, est_coeffs, ...
-                    shell, current_indices, ell, d, num_shells, true_coeffs);
+                x_init = randn(size(current_indices)); %true_coeffs(shell, current_indices) + 
+                obj = @(x_shell) specialized_loss_and_fd_grad(x_shell, est_coeffs, ...
+                    shell, current_indices, ell, d, true_coeffs);
+
                 [x_sol, ~] = fminunc(obj, x_init, options);
                 est_coeffs(shell, current_indices) = x_sol;
             end
@@ -62,108 +62,56 @@ for idx = 1:length(shell_values)
     avg_errors(idx) = mean(rel_errors);
     std_errors(idx) = std(rel_errors);
     fprintf('\nAverage error for %d shells: %.4f%% (std = %.4f%%)\n', ...
-        num_shells, 100*avg_errors(idx), 100*std_errors(idx));
+        num_shells, 100 * avg_errors(idx), 100 * std_errors(idx));
 end
 
-% Plot results
 figure;
-errorbar(shell_values, 100*avg_errors, 100*std_errors, 'o-', 'LineWidth', 2);
+errorbar(shell_values, 100 * avg_errors, 100 * std_errors, 'o-', 'LineWidth', 2);
 xlabel('Number of Shells');
 ylabel('Average Relative Error (%)');
 title('Frequency Marching Recovery Error vs. Number of Shells');
 grid on;
 
-% --- Helper functions ---
 function idx = sh_index(l, m)
     idx = l^2 + m + l + 1;
 end
 
-function [loss, grad] = specialized_loss_and_grad(x_shell, est_coeffs, shell_idx, ...
-        current_indices, ell, d, num_shells, true_coeffs)
+function [loss, grad] = specialized_loss_and_fd_grad(x_shell, est_coeffs, shell_idx, ...
+        current_indices, ell, d, true_coeffs)
 
     est_coeffs(shell_idx, current_indices) = x_shell;
-    B_target = compute_SO3_bispectrum(true_coeffs, d);
+    B_target = compute_SO3_bispectrum_restricted(true_coeffs, d, ell, shell_idx);
 
-    loss = scalar_loss_wrapper(x_shell, est_coeffs, shell_idx, current_indices, ell, d, num_shells, B_target);
-    grad = analytic_gradient(x_shell, est_coeffs, shell_idx, current_indices, ell, d, num_shells, B_target);
+    loss_fun = @(x) scalar_loss_wrapper(x, est_coeffs, shell_idx, current_indices, ell, d, B_target);
+    loss = loss_fun(x_shell);
+    grad = finite_difference_gradient(loss_fun, x_shell);
 end
 
-function loss = scalar_loss_wrapper(x_shell, est_coeffs, shell_idx, current_indices, ell, d, num_shells, B_target)
+function loss = scalar_loss_wrapper(x_shell, est_coeffs, shell_idx, current_indices, ell, d, B_target)
     est_coeffs(shell_idx, current_indices) = x_shell;
-    B_current = compute_SO3_bispectrum(est_coeffs, d);
+    B_current = compute_SO3_bispectrum_restricted(est_coeffs, d, ell, shell_idx);
     B_diff = B_current - B_target;
-
     loss = sum(abs(B_diff(:)).^2);
 end
 
-function grad = analytic_gradient(x_shell, est_coeffs, shell_idx, current_indices, ell, d, num_shells, B_target)
-    grad = zeros(size(x_shell));
-    est_coeffs(shell_idx, current_indices) = x_shell;
-    B_current = compute_SO3_bispectrum(est_coeffs, d);
-    B_diff = B_current - B_target;
-
-    for i = 1:length(current_indices)
-        l = ell;
-        m = i - (l^2 + l);
-        idx_i = current_indices(i);
-        grad_val = 0;
-
-        for l1 = 0:d
-            for l2 = 0:d
-                for l3 = abs(l1 - l2):min(l1 + l2, d)
-                    lvals = [l1, l2, l3];
-                    idx_ell = find(lvals == ell);
-                    if length(idx_ell) ~= 1 || any(lvals(setdiff(1:3, idx_ell)) >= ell)
-                        continue;
-                    end
-                    for s1 = 1:num_shells
-                        for s2 = 1:num_shells
-                            for s3 = 1:num_shells
-                                shells = [s1, s2, s3];
-                                if shells(idx_ell) ~= shell_idx
-                                    continue;
-                                end
-                                for m1 = -l1:l1
-                                    for m2 = -l2:l2
-                                        m3 = -m1 - m2;
-                                        if abs(m3) > l3, continue; end
-                                        idx1 = sh_index(l1, m1);
-                                        idx2 = sh_index(l2, m2);
-                                        idx3 = sh_index(l3, m3);
-                                        cg = clebsch_gordan(l1, m1, l2, m2, l3, m3);
-                                        phase = (-1)^m1;
-                                        coeffs = [est_coeffs(s1,idx1), est_coeffs(s2,idx2), est_coeffs(s3,idx3)];
-                                        if idx_ell == 1 && idx1 == idx_i
-                                            term = coeffs(2) * coeffs(3);
-                                        elseif idx_ell == 2 && idx2 == idx_i
-                                            term = coeffs(1) * coeffs(3);
-                                        elseif idx_ell == 3 && idx3 == idx_i
-                                            term = coeffs(1) * coeffs(2);
-                                        else
-                                            continue;
-                                        end
-                                        grad_val = grad_val + 2 * real(B_diff(s1,s2,s3,l1+1,l2+1,l3+1)) * term * cg * phase;
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        grad(i) = grad_val;
-    end
-end
-
-function B = compute_SO3_bispectrum(a_lm_matrix, d)
+function B = compute_SO3_bispectrum_restricted(a_lm_matrix, d, ell, shell_idx)
     num_shells = size(a_lm_matrix, 1);
     B = zeros(num_shells, num_shells, num_shells, d+1, d+1, d+1);
     for l1 = 0:d
         for l2 = 0:d
             for l3 = abs(l1 - l2):min(l1 + l2, d)
+                lvals = [l1, l2, l3];
+                idx_ell = find(lvals == ell);
+                if length(idx_ell) ~= 1
+                    continue;
+                end
                 for s1 = 1:num_shells
                     for s2 = 1:num_shells
                         for s3 = 1:num_shells
+                            shells = [s1, s2, s3];
+                            if shells(idx_ell) ~= shell_idx
+                                continue;
+                            end
                             sum_m = 0;
                             for m1 = -l1:l1
                                 for m2 = -l2:l2
@@ -172,7 +120,7 @@ function B = compute_SO3_bispectrum(a_lm_matrix, d)
                                     idx1 = sh_index(l1, m1);
                                     idx2 = sh_index(l2, m2);
                                     idx3 = sh_index(l3, m3);
-                                    cg = clebsch_gordan(l1, m1, l2, m2, l3, m3);
+                                    cg = clebsch_gordan(l2, m2, l3, m3, l1, -m1);
                                     a1 = a_lm_matrix(s1, idx1);
                                     a2 = a_lm_matrix(s2, idx2);
                                     a3 = a_lm_matrix(s3, idx3);
@@ -208,4 +156,14 @@ function cg = clebsch_gordan(j1, m1, j2, m2, j3, m3)
         factorial(j1 + m1) * factorial(j1 - m1) * ...
         factorial(j2 + m2) * factorial(j2 - m2));
     cg = prefactor * sum_term;
+end
+
+function grad_fd = finite_difference_gradient(fun, x)
+    epsilon = 1e-6;
+    grad_fd = zeros(size(x));
+    for i = 1:length(x)
+        x_fwd = x; x_fwd(i) = x_fwd(i) + epsilon;
+        x_bwd = x; x_bwd(i) = x_bwd(i) - epsilon;
+        grad_fd(i) = (fun(x_fwd) - fun(x_bwd)) / (2 * epsilon);
+    end
 end

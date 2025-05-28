@@ -43,7 +43,7 @@ vol_true_downsampled = randn(L, L, L);
 vol_true_downsampled = 100 * vol_true_downsampled / norm(vol_true_downsampled, "fro");
 
 % % Volume expansion in 3-D Fourier-Bessel basis
-ell_max = 4;
+ell_max = 2;
 R_max = L / 2;
 NUM_SHELLS = 5;
 shells = round(linspace(2, R_max, NUM_SHELLS));
@@ -75,7 +75,7 @@ vol_init_trunc =  vol_init_trunc / norm(vol_init_trunc, "fro");
 x_init = expand_vol_spherical_basis(vol_init_trunc, rad_size, ell_max, ...
     L, Psilms_NUM_SHELLS, jball_NUM_SHELLS);
 for ell=0:ell_max
-    x_init{ell + 1} = x_true_NUM_SHELLS{ell + 1} + 50 * randn(size(x_true_NUM_SHELLS{ell + 1}));
+    x_init{ell + 1} = 100 * randn(size(x_true_NUM_SHELLS{ell + 1}));% + x_true_NUM_SHELLS{ell + 1} + ;
 end
 x_true_vec = vec_cell(x_true_NUM_SHELLS);
 x_true_vec = [real(x_true_vec); imag(x_true_vec)];
@@ -108,4 +108,5 @@ N = length(x_true_vec) / 2;
 norm(x_true_vec - z_con) / norm(x_true_vec)
 norm(x_true_vec - x_init_vec) / norm(x_true_vec)
 
-[z_unc, cst_unc] = optimize(x_init_vec, B, ell_max, NUM_SHELLS);
+% 
+% [z_unc, cst_unc] = optimize(x_init_vec, B, ell_max, NUM_SHELLS);
