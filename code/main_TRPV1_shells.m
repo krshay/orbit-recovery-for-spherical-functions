@@ -47,7 +47,7 @@ vol_true_downsampled = 100 * vol_true_downsampled / norm(vol_true_downsampled, "
 
 %% Volume reconstruction
 rng(1);
-n_trials = 1;
+n_trials = 5;
 vol_inits = zeros(L, L, L, n_trials);
 for trial = 1:n_trials
     tmp = normrnd(0, 1, [L, L, L]);
