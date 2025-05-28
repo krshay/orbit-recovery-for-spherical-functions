@@ -38,7 +38,7 @@ This codebase requires the following toolboxes and libraries:
      addpath('/path/to/easyspin')
      ```
 
-3. **Spherical Harmonics Toolbox**
+3. **[Spherical Harmonics Toolbox](https://github.com/polarch/Spherical-Harmonic-Transform/)**
    - Custom or third-party toolbox for spherical harmonic evaluations
    - Add to path with:  
      ```matlab
