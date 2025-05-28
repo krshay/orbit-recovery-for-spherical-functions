@@ -2,9 +2,9 @@ close all;
 clear variables;
 
 warning('off');
-addpath(genpath('/data/shaykreymer/PhD/ASPIRE'))
-addpath('/data/shaykreymer/PhD/easyspin-5.2.33/easyspin')
-addpath('/data/shaykreymer/PhD/SphericalHarmonics')
+addpath(genpath('../../ASPIRE'))
+addpath('../../easyspin-5.2.33/easyspin')
+addpath('../../SphericalHarmonics')
 
 
 options = optimoptions('fminunc', ...
